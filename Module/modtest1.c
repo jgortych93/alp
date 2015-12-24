@@ -6,6 +6,7 @@
 #include <linux/stat.h>
 #include <linux/fcntl.h>
 #include <linux/unistd.h>
+#include <linux/semaphore.h>
 #include <linux/cdev.h>
 #include <linux/device.h>
 #include "./net_mod.h"
@@ -33,6 +34,18 @@ static int device_open(struct inode *inode, struct file *file)
 	return SUCCESS;
 }
 
+static int device_release(struct inode *inode, struct file *file)
+{
+#ifdef DEBUG
+	printk(KERN_INFO "device_release(%p,%p)\n", inode, file);
+#endif
+
+	
+	Device_Open--;
+
+	module_put(THIS_MODULE);
+	return SUCCESS;
+}
 
 static ssize_t device_read (struct file* file,char __user * buffer,size_t length,int option, loff_t * offset)
 {
@@ -43,17 +56,7 @@ static ssize_t device_read (struct file* file,char __user * buffer,size_t length
 			printk(KERN_INFO "device_open\n");
 		case 2:
 			printk(KERN_INFO "O kurwa. To działa.\n");
-			/*if (*Message_Ptr == 0)
-				return 0;
-			while (length && *Message_Ptr) 
-			{
-
-		
-			put_user(*(Message_Ptr++), buffer++);
-			length--;
-			bytes_read++;
-			}
-*/
+			
 			
 	}
 }
@@ -94,56 +97,46 @@ struct file_operations Fops = {
 	.write = NULL,
 	.unlocked_ioctl = device_ioctl,
 	.open = device_open,
-	.release = NULL,	/* a.k.a. close */
+	.release = device_release,	/* a.k.a. close */
 };
 
 int init_module()
 {
-	int ret_val;
-	dev_t* first,dev;
-	struct class* cl;
-	struct cdev *  	c_dev;
-	/* 
-	 * Register the character device (atleast try) 
-	 */
-	ret_val = register_chrdev(0,DEVICE_NAME,&Fops);
-	printk(KERN_INFO " Registered with major number %d\n",ret_val);
-	
-	
-	// * Negative values signify an error 
-	 
-	if (ret_val < 0) 
+	struct device *chr_dev =NULL ;  
+	Major = register_chrdev(0, DEVICE_NAME, &Fops);
+	if (Major < 0) 
 	{
-		printk(KERN_ALERT "%s failed with %d\n",
-		       "Sorry, registering the character device ", ret_val);
-		return ret_val;
+	     printk ("Registering the character device failed with %d\n", Major);
+	     return Major;
 	}
-	return 0;
-	/*
-	 printk(KERN_INFO "Welcome!");
-    if (alloc_chrdev_region(&first, 0, 1, "char_dev") < 0)  //$cat /proc/devices
-    {
-        return -1;
-    }
-    if ((cl = class_create(THIS_MODULE, "chardrv")) == NULL)    //$ls /sys/class
-    {
-        unregister_chrdev_region(first, 1);
-        return -1;
-    }
-    
-    cdev_init(&c_dev, &Fops);
-    if (cdev_add(&c_dev, first, 1) == -1)
-    {
-        device_destroy(cl, first);
-        class_destroy(cl);
-        unregister_chrdev_region(first, 1);
-        return -1;
-    }
+	
+	printk("<1>I was assigned major number %d.\n", Major);
+	 
+	dev_Class = class_create(THIS_MODULE,DEVICE_NAME); 
+	
+	if( dev_Class == NULL)
+	{
+		printk( KERN_ALERT "Error!Class couldn't be created!\n" );
+		return -1 ;
+	}
+	printk( KERN_INFO "Class created!\n" );
 
-	if (device_create(cl, NULL, first, NULL, "mynull") == NULL) //$ls /dev/
-    {
-        class_destroy(cl);
-        unregister_chrdev_region(first, 1);
-        return -1;
-    }*/
+	chr_dev = device_create( dev_Class , NULL , MKDEV(Major,0),NULL,"ALP");
+	
+	if( chr_dev == NULL ) 
+	{
+		printk( KERN_ALERT "Error!Device file couldnt be created\n" );
+		return -1;
+	}
+	printk( KERN_INFO "Device created.Now it can be reached from \dev path\n" );
+	return 0;
+}
+
+void cleanup_module(void) 
+{
+ 
+     device_destroy(dev_Class,MKDEV(Major,0));
+     class_destroy(dev_Class);       
+     unregister_chrdev(Major, DEVICE_NAME);
+     printk( KERN_INFO "No i chuj. No i cześć.\n" );
 }

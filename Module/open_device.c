@@ -4,7 +4,7 @@
 #include <unistd.h>		/* exit */
 #include <sys/ioctl.h>
 #include "./net_mod.h"
-main()
+int main()
 {
 int file_desc,ret_val;
 char* message;
@@ -18,4 +18,6 @@ if (file_desc < 0)
 	
 ret_val = ioctl(file_desc, IOCTL_GET_IFS, message);
 close(file_desc);
+	
+return 0;
 }
