@@ -1,7 +1,14 @@
-obj-m += modtest1.o
+obj-m := chardev.o
+KDIR := /lib/modules/$(shell uname -r)/build
+PWD := $(shell pwd)
 
-all:
-	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
-
+# Some tutorials use M= instead of SUBDIRS= You may need to be root to
+# compile the module. You must be root to insert it.
+default:
+	$(MAKE) -C $(KDIR) M=$(PWD) modules
+	gcc -o ioctl iotcl.c
+	insmod chardev.ko
 clean:
-	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
+	rm -f ioctl
+	$(MAKE) -C $(KDIR) M=$(PWD) clean
+	rmmod chardev.ko

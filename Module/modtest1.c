@@ -10,6 +10,9 @@
 #include <linux/cdev.h>
 #include <linux/device.h>
 #include "./net_mod.h"
+#include <linux/netdevice.h>
+#include <linux/decompress/mm.h> 
+#include <linux/string.h>
 
 #define SUCCESS 0
 #define DEVICE_NAME "char_dev"
@@ -47,13 +50,45 @@ static int device_release(struct inode *inode, struct file *file)
 	return SUCCESS;
 }
 
+static int getInterfaces(char** buf)
+{
+	pr_info("Funkcja getInterfaces: start");
+	struct net_device   *dev;
+    int nr=0;
+
+    dev = first_net_device(&init_net);
+	*buf=malloc(100);
+	*buf[0]='\0';
+	char *buf2=malloc(100);
+    while (dev) 
+	{
+        nr++;
+
+        sprintf( buf2, "%d.   %s\n", nr, dev->name );
+		strcat(*buf,buf2);
+        dev = next_net_device(dev);
+
+    }
+	free(buf2);
+    return nr;
+}
+
 static ssize_t device_read (struct file* file,char __user * buffer,size_t length,int option, loff_t * offset)
 {
 	int bytes_read = 0;//aktualnie zliczona libcza odczytanych bitów
 	switch(option)
 	{
 		case 1:
-			printk(KERN_INFO "device_open\n");
+			{
+			int p;
+			p=getInterfaces(&buffer);
+			if (p<=0)
+			{
+				printk(KERN_ALERT "Niepoprawne sczytanie listy interfejsów w funkcji device read");
+				return -1;
+			}
+			break;
+			}
 		case 2:
 			printk(KERN_INFO "O kurwa. To działa.\n");
 			
