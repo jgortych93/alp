@@ -5,7 +5,8 @@
 #include <string.h>
 #include <sys/epoll.h>
 #include "stdio.h"
-
+#include "../Module/chardev.h"
+#include <errno.h>
 static int handle_client_message(event_handler* self, struct message* m)
 {
 	int fd = self->fd;
@@ -29,11 +30,24 @@ static int handle_client_message(event_handler* self, struct message* m)
 			break;
 			
 		case ACK_NACK:
-			len=12;
-			send_bytes(fd,"Połączono\n",len);
-			len=8;
-			send_bytes(fd,"Hello\n",len);
+			{
+			size_t len;
+			int file_desc, ret_val;
+			char msg2[ROZ];
+			file_desc = open(DEVICE_FILE_NAME, 0);
+			if (file_desc < 0) {
+			printf("Can't open device file: %s\n", DEVICE_FILE_NAME);
+			exit(-1);
+			}
+			ret_val = ioctl(file_desc, IOCTL_GET_IFS, msg2,9,4);
+			if ((ret_val)<0)
+				printf("Pierwszy ioctl: %s",strerror(errno));
+			len=(strlen(msg2))+1;
+			printf("%d",len);
+			send_bytes(fd,msg2,len);
+			close(file_desc);
 			break;
+			}
 		default:
 			
 			
