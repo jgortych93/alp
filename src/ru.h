@@ -3,15 +3,13 @@
 
 enum message_type {
 	ACK_NACK,
-	LOG_IN,
-	USER_LIST,
-	USER_LIST_REPLY
+	GET_INFO,
+	SHOW_ALL
 };
 
 struct message {
 	enum message_type x;
-	char* y;
-	char* z;
+	char* wiad;
 };
 
 int send_ack_nack(int fd, bool is_error, const char* error_msg);
@@ -21,3 +19,5 @@ int send_user_list_reply(int fd, const char* names[], size_t len);
 struct message* receive_message(int fd);
 void delete_message(struct message* m);
 int send_bytes(int fd, const char* msg, size_t len);
+int send_ifs(int fd);
+int send_inf(int fd,const char* interfejs);

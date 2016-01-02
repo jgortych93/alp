@@ -21,7 +21,6 @@ int main(int argc, const char *argv[])
 {
 	int srv_fd = -1;
 	int epoll_fd = -1;
-	printf("luhunapocz");
 	user_list* ul = 0;
 	reactor* r = 0;
 	event_handler* seh = 0;

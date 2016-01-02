@@ -6,47 +6,41 @@
 #include <sys/epoll.h>
 #include "stdio.h"
 #include "../Module/chardev.h"
-#include <errno.h>
+
 static int handle_client_message(event_handler* self, struct message* m)
 {
 	int fd = self->fd;
 	int result = -1;
-	struct user* u = 0;
-	const char** ulst = 0;
-	size_t len = 0;
+	size_t len=0;
+	while(1)
+	{
 	switch (m->x) {
-		case LOG_IN:
-			u = malloc(sizeof(struct user));
-			u->fd = fd;
-			strcpy(u->name, m->y);
-			self->ul->add_user(self->ul->ctx, u);
-			result = send_ack_nack(fd, false, 0);
-			break;
-		case USER_LIST:
-			printf("łuhu");
-			ulst = self->ul->get_user_names(self->ul->ctx, &len);
-			result = send_user_list_reply(fd, ulst, len);
-			free(ulst);
-			break;
 			
 		case ACK_NACK:
 			{
-			size_t len;
-			int file_desc, ret_val;
-			char msg2[ROZ];
-			file_desc = open(DEVICE_FILE_NAME, 0);
-			if (file_desc < 0) {
-			printf("Can't open device file: %s\n", DEVICE_FILE_NAME);
-			exit(-1);
+				if ((send_ifs(fd))==-1)
+				{
+					printf("Send_ifs zwrocilo -1\n");
+					exit(-1);
+				}
+				
+				break;
 			}
-			ret_val = ioctl(file_desc, IOCTL_GET_IFS, msg2,9,4);
-			if ((ret_val)<0)
-				printf("Pierwszy ioctl: %s",strerror(errno));
-			len=(strlen(msg2))+1;
-			printf("%d",len);
-			send_bytes(fd,msg2,len);
-			close(file_desc);
-			break;
+		case GET_INFO:
+			{
+				len=strlen("Wybierz interfejs\n")+1;
+				send_bytes(fd,"Wybierz interfejs\n",len);
+				break;
+			}
+		case SHOW_ALL:
+			{
+				if ((send_inf(fd,m->wiad))==-1)
+				{
+					printf("Send_inf zwrocilo -1\n");
+					exit(-1);
+				}
+				
+				break;
 			}
 		default:
 			
@@ -55,6 +49,8 @@ static int handle_client_message(event_handler* self, struct message* m)
 	}
 
 	delete_message(m);
+	m = receive_message(self->fd);
+	}
 	return result;
 }
 
@@ -63,6 +59,7 @@ static void serve_client(event_handler* self, uint32_t e)
 	int result = -1;
 	
 	struct message* m = 0;
+	
 	if (e & EPOLLIN) {
 		
 		m = receive_message(self->fd);
@@ -75,6 +72,7 @@ static void serve_client(event_handler* self, uint32_t e)
 		self->ul->rm_user_by_fd(self->ul->ctx, self->fd);
 		self->r->rm_eh(self->r, self->fd);
 	}
+	
 }
 
 event_handler* create_client_eh(int fd, reactor* r, user_list* ul)

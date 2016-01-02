@@ -1,6 +1,8 @@
 #include "ru.h"
 #include <unistd.h>
 #include <string.h>
+#include "../Module/chardev.h"
+#include <errno.h>
 
 int send_bytes(int fd, const char* msg, size_t len)
 {
@@ -12,64 +14,6 @@ int send_bytes(int fd, const char* msg, size_t len)
 	return result;
 }
 
-int send_ack_nack(int fd, bool is_error, const char* error_msg)
-{
-	char* msg = "1.0";
-	size_t len = 3;
-	if (is_error) 
-	{
-		len = strlen(error_msg) + 4;
-		msg = malloc((len + 1) * sizeof(char));
-		strcpy(msg, "1.1.");
-		strcpy(msg+4, error_msg);
-	}
-
-	return send_bytes(fd, msg, len);
-}
-
-int send_log_in(int fd, const char* name)
-{
-	size_t len = strlen(name) + 2;
-	char* msg = malloc((len + 1) * sizeof(char));
-	strcpy(msg, "2.");
-	strcpy(msg + 2, name);
-
-	return send_bytes(fd, msg, len);
-}
-
-int send_user_list(int fd)
-{
-	char* msg = "6.";
-	size_t len = 2;
-
-	return send_bytes(fd, msg, len);
-}
-
-int send_user_list_reply(int fd, const char* names[], size_t len)
-{
-	char* msg = 0;
-	size_t mlen = 2;
-	size_t i = 0;
-	size_t offset = 0;
-	for (; i < len; ++i) 
-	{
-		mlen += strlen(names[i]) + 1; //dot separator
-	}
-	msg = malloc(mlen * sizeof(char));
-	strcpy(msg, "7.");
-	offset = 2;
-	for (i = 0; i < len; ++i) {
-		strcpy(msg+offset, names[i]);
-		offset += strlen(names[i]);
-		if (i < (len-1)) 
-		{
-			msg[offset] = '.';
-			++offset;
-		}
-	}
-
-	return send_bytes(fd, msg, mlen);
-}
 
 struct message* receive_message(int fd)
 {
@@ -91,8 +35,13 @@ struct message* receive_message(int fd)
 		
 		case '1':
 			m->x = ACK_NACK;
-			m->y = 0;
-			m->z = 0;
+			break;
+		case '2':
+			m->x = GET_INFO;
+			break;
+		case 'A':
+			m->x= SHOW_ALL;
+			m->y="ALL";
 			break;
 			
 	}
@@ -103,12 +52,51 @@ struct message* receive_message(int fd)
 
 void delete_message(struct message* m)
 {
-	if (m->y)
-		free(m->y);
-
-	if (m->z)
-		free(m->z);
-
 	free(m);
 }
 
+
+int send_ifs(int fd)
+{
+	size_t len;
+	int file_desc, ret_val;
+	char msg2[ROZ];
+	file_desc = open(DEVICE_FILE_NAME, 0);
+	if (file_desc < 0) {
+	printf("Can't open device file: %s\n", DEVICE_FILE_NAME);
+	exit(-1);
+	}
+	ret_val = ioctl(file_desc, IOCTL_GET_IFS, msg2,9,4);
+	if ((ret_val)<0)
+	{
+		printf("Pierwszy ioctl: %s",strerror(errno));
+		return -1;
+	}
+	len=(strlen(msg2))+1;
+	if((send_bytes(fd,msg2,len))==-1)
+		return -1;
+	close(file_desc);
+	
+}
+int send_inf(int fd,const char* interfejs)
+{
+	size_t len;
+	int file_desc, ret_val;
+	char msg2[ROZ];
+	file_desc = open(DEVICE_FILE_NAME, 0);
+	if (file_desc < 0) {
+	printf("Can't open device file: %s\n", DEVICE_FILE_NAME);
+	exit(-1);
+	}
+	ret_val = ioctl(file_desc, IOCTL_GET_INF, msg2,9,4);
+	if ((ret_val)<0)
+	{
+		printf("Pierwszy ioctl: %s",strerror(errno));
+		return -1;
+	}
+	len=(strlen(msg2))+1;
+	if((send_bytes(fd,msg2,len))==-1)
+		return -1;
+	close(file_desc);
+	
+}
