@@ -7,9 +7,9 @@
 
 
 //switch (ioctl_num)
-#define IOCTL_GET_IFS	0
-#define IOCTL_GET_INF	1
-#define IOCTL_SET_MAC	2
+#define IOCTL_GET_IFS	1
+#define IOCTL_GET_INF	2
+#define IOCTL_SET_MAC	4
 
 //flag for interface info
 #define I_MAC 1
