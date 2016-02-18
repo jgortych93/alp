@@ -3,26 +3,29 @@
  *  chardev.c - Create an input/output character device
  */
 
-#include <linux/kernel.h>	/* We're doing kernel work */
-#include <linux/module.h>	/* Specifically, a module */
+#include <linux/kernel.h>			/* We're doing kernel work */
+#include <linux/module.h>			/* Specifically, a module */
 #include <linux/fs.h>
-#include <asm/uaccess.h>	/* for get_user and put_user */
-#include <linux/netdevice.h>    //for struct net_device, for_each_netdev()
-#include <linux/string.h>	//for strcat()
-#include <linux/decompress/mm.h> //for malloc(), free()
-#include <linux/compiler.h>//do __rcu
+#include <asm/uaccess.h>			/* for get_user and put_user */
+#include <linux/netdevice.h>    	//for struct net_device, for_each_netdev()
+#include <linux/string.h>			//for strcat()
+#include <linux/decompress/mm.h> 	//for malloc(), free()
+#include <linux/compiler.h> 		//do __rcu
 #include <linux/inetdevice.h>
+#include <linux/list.h> 			//do makra list_first_entry
+#include <linux/in6.h>				//do struct in6_addr
+#include <net/if_inet6.h>			//do struct inet6_ifaddr
+
 MODULE_LICENSE("GPL");
 #include "chardev.h"
 
-#define DEVICE_NAME "ALP"
-#define MAJOR_NUM 100
-#define BUF_SIZE 100
+
 
 static int Device_Open = 0;
 
-static int getInterfaces(char * buf)
+static int getInterfaces(struct kern_usr_transfer *k_str)
 {
+	char *buf=k_str->msg_from_kern;
 	struct net_device   *dev;
 	
     int nr=0;
@@ -37,15 +40,16 @@ static int getInterfaces(char * buf)
     return len;
 }
 
-static int getInfo(char* buf, char* interface, int info)
+static int getInfo(struct kern_usr_transfer *k_str)
 {
+	char *buf=k_str->msg_from_kern;
+	char *interface="enp2s0";
+	int flag=k_str->flag;
 	struct net_device   *dev;
+	struct kern_user_transfer *tmp;
 	int len=0; 
-	int i;
+	unsigned char ipv6[16];
 	
-	__be32 addr; //adres IPv4
-	struct in_device __rcu* in_dev; 
-	struct in_ifaddr __rcu* ifap;
 	
     dev = first_net_device(&init_net);
     while (dev) {
@@ -55,75 +59,170 @@ static int getInfo(char* buf, char* interface, int info)
 	
 	if(!dev){
 		len += sprintf( buf+len, "Nie znaleziono interfejsu: '%s'\n",interface);
+		return len;
 	}
-	else{
 		
+	len += sprintf(buf+len,"%s:\n",interface);
 		
-		len += sprintf(buf+len,"%s:\n",interface);
-		//Mac
+	//Mac
+	if (flag & I_MAC){
+		
+		int i;
 		len += sprintf(buf+len,"\tHWaddr: ");
 		for (i = 0; i < 6; i++) 
-		    len += sprintf( buf+len, "%02X%c", dev->dev_addr[i], (i<5)?':':' ' );
+			len += sprintf( buf+len, "%02X%c", dev->dev_addr[i], (i<5)?':':' ' );
 		len += sprintf(buf+len,"\n");
-		
-		//Status UP/DOWN
+	}
+	//Status UP/DOWN
+	if (flag & I_STAT){
 		if ( dev->flags & IFF_UP ) 
 			len += sprintf( buf+len, "\tStatus: UP\n" );
 		else
 			len += sprintf( buf+len, "\tStatus: DOWN\n" );
+	}
+	//IPv4
+	if (flag & I_IPv4)
+	{
 		
-		//IP V4
+		__be32 addr; //adres IPv4
+		struct in_device __rcu* in_dev; 
+		struct in_ifaddr __rcu* ifap;
+
 		in_dev=(dev->ip_ptr);
 		if (in_dev->ifa_list)
 		{
-			for (ifap = in_dev->ifa_list; ifap != NULL; ifap = ifap->ifa_next) 
-			{
-				addr=ifap->ifa_address;
-				len+=sprintf(buf+len, "\tIPv4:   %d.%d.%d.%d\n", addr & 0xff, (addr >> 8) & 0xff,(addr >> 16) & 0xff, addr >> 24);
-				addr=ifap->ifa_mask;
-				len+=sprintf(buf+len, "\tMaska:   %d.%d.%d.%d\n", addr & 0xff, (addr >> 8) & 0xff,(addr >> 16) & 0xff, addr >> 24);
-			}
+
+			ifap = in_dev->ifa_list;
+			addr = ifap->ifa_address;
+			len += sprintf(buf+len, "\tIPv4:		%d.%d.%d.%d\n", addr & 0xff, (addr >> 8) & 0xff,(addr >> 16) & 0xff, addr >> 24);
+			addr = ifap->ifa_mask;
+			len += sprintf(buf+len, "\tMaska:		%d.%d.%d.%d\n", addr & 0xff, (addr >> 8) & 0xff,(addr >> 16) & 0xff, addr >> 24);
+
 		}
 		else
 		{
-			len+=sprintf(buf+len, "\tIPv4:   Interfejs nie posiada adresu IPv4\n");
+			len+=sprintf(buf+len, "\tIPv4:		Interfejs nie posiada adresu IPv4\n");
 		}
-		//Another shit
 	}
-    return len;
+	//IPv6
+	if (flag & I_IPv6)
+	{
+		len += sprintf(buf+len, "\tIPv6:\t\t");
+		struct inet6_ifaddr *if6ap;
+		struct inet6_dev __rcu *ip6dev; // urządzenie, na którym dzialamy
+		struct in6_addr *if6addr; //adres IPv6
+		ip6dev=(dev->ip6_ptr); // wskanik na IPv6 Wybranego device'a
+		if (ip6dev != NULL && !list_empty(&ip6dev->addr_list))
+		{
+			if6ap = list_first_entry(&ip6dev->addr_list, struct inet6_ifaddr, if_list);   //ustawienie na pierwszą pozycję w liście, (wskanik,typ[samo addr_list jest typu strcut list_head, ale taki jest typ listy],nazwa nagłówka danej listy[if_list jest 'obiektem' struct list_head w struct inet6_ifaddr) 
+        	if6addr = &if6ap->addr; // przypisanie wskaznika
+			
+				memcpy(ipv6, &if6addr->in6_u, 16);
+				len += sprintf( buf+len, "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x", (int)ipv6[0],(int)ipv6[1],(int)ipv6[2],(int)ipv6[3],(int)ipv6[4],(int)ipv6[5],(int)ipv6[6],(int)ipv6[7],(int)ipv6[8],(int)ipv6[9],(int)ipv6[10],(int)ipv6[11],(int)ipv6[12],(int)ipv6[13],(int)ipv6[14],(int)ipv6[15]);	
+			
+		} 
+			
+		else 
+		{
+			memset(ipv6, 0, 16);    //wyzerowanie w przeciwnym wypadku
+			len+=sprintf(buf+len, "Interfejs nie posiada adresu IPv6\n");	
+
+		}
+		
+		
+			
+	}
+
+		
+
+		return len;
 }
 
-static long device_ioctl(struct file *file,	/* see include/linux/fs.h */
-                  	unsigned int ioctl_num,	/* number for ioctl */
-                  	char* buf_u,				/* bufor od usera, tutaj zapiszemy wiadomosc */
-				 	char* ifc_name_u,		/* nazwa interfejsu */
-				 	int anotherp
-				 )
+/*static int setMAC(struct kern_usr_transfer *k_str)
 {
+	printk ( KERN_INFO "funkcja setMAC() \n");
+	char *buf=k_str->msg_from_kern;
+	char *interface=k_str->interface;
+	const unsigned char *new_mac=k_str->new_mac;
+	
+	int nbyte = 5;
+	unsigned char mac_bytes[6];//correct format of MAC address
+	struct net_device   *dev;
+	int len=0; 
+	
+	/* Check the format 
+	if (strlen(new_mac) != 17) {
+		printk ( KERN_INFO "[ERROR] Incorrect format: MAC length should be 17. %s(%lu)\n", new_mac, strlen(new_mac));
+		return -1;
+	}
 
-	char buf_k[BUF_SIZE];//tutj zapiszemy wiadomosc dla usera
-	int len=0;//dlugosc naszej wiadomosci
+	for (nbyte=2; nbyte<16; nbyte+=3) {
+		if (new_mac[nbyte] != ':') {
+			printk ( KERN_INFO "[ERROR] Incorrect format: %s\n", new_mac);
+			return -1;
+		}
+	}
+
+	/* Read the values 
+	for (nbyte=0; nbyte<6; nbyte++) {
+		mac_bytes[nbyte] = (char) (kstrtoul(new_mac+nbyte*3, 0, 16) & 0xFF);
+	}
 	
-	char ifc_name_k[BUF_SIZE];
-	strnlen_user( ifc_name_u, BUF_SIZE );
-	strncpy_from_user( ifc_name_k, ifc_name_u, BUF_SIZE );
+    dev = first_net_device(&init_net);
+    while (dev) {
+		if(!strcmp(interface,dev->name)) break;
+        dev = next_net_device(dev);
+    }
 	
-	printk(KERN_INFO " Interfejs: %s\n",ifc_name_k);
+	if(!dev){
+		len += sprintf( buf+len, "Nie znaleziono interfejsu: '%s'\n",interface);
+		return len;
+	}
+	printk ( KERN_INFO "Przed przypisaniem\n");
+	
+	
+	netif_stop_queue(dev);  //IFDOWN
+    memcpy(dev->dev_addr, new_mac, 17);
+    
+    netif_start_queue(dev); //IFUP
+	
+	printk ( KERN_INFO "Po przypisaniu\n");
+	len += sprintf( buf+len, "Zmieniono adres MAC na: '%s'\n",new_mac);
+	return 0;
+}
+*/
+static long device_ioctl( 	
+						struct file *file,	/* see include/linux/fs.h */
+                  		unsigned int ioctl_num,	/* number for ioctl */
+                  		struct kern_usr_transfer *u_str	/* info from user */
+				 		)
+{
+	struct kern_usr_transfer k_str;
+	int len=0;//length of k_str. msg_from_kern
+	int left_bytes=copy_from_user( &k_str, u_str, sizeof(k_str) );
+	
+	if(left_bytes){
+		printk(KERN_INFO "copy_from_user error bytes left: %d\n",left_bytes);
+		return -1;
+	}
+	
 	
 	switch (ioctl_num) {
 			
 		case IOCTL_GET_IFS:
-			len=getInterfaces(buf_k);
-			clear_user(buf_u,len);
-			copy_to_user(buf_u,buf_k,len+1);
-			//put_user('\0',  buf_u + len + 1);
+			len=getInterfaces(&k_str);
+			copy_to_user(u_str, &k_str, sizeof(k_str));
 			break;
 
 		case IOCTL_GET_INF:
-			len=getInfo(buf_k, "wlp3s0", 0);
-			clear_user(buf_u,len);
-			copy_to_user(buf_u,buf_k,len+1);
-			//put_user('\0',  buf_u + len + 1);
+			len=getInfo(&k_str);
+			copy_to_user(u_str, &k_str, sizeof(k_str));
+			break;
+			
+		case IOCTL_SET_MAC:
+			printk ( KERN_INFO "case setMAC() \n");
+			//setMAC(&k_str);
+			copy_to_user(u_str, &k_str, sizeof(k_str));
 			break;
 	}
 
@@ -194,7 +293,7 @@ int init_module()
 		printk( KERN_ALERT "Error!Device file couldnt be created\n" );
 		return -1;
 	}
-	printk( KERN_INFO "Device created.Now it can be reached from \dev path\n" );
+	printk( KERN_INFO "Device created.Now it can be reached from 'dev' path\n" );
 	return 0;
 }
 

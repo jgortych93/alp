@@ -6,7 +6,7 @@ PWD := $(shell pwd)
 # compile the module. You must be root to insert it.
 default:
 	$(MAKE) -C $(KDIR) M=$(PWD) modules
-	gcc -o ioctl iotcl.c
+	gcc -o ioctl ioctl.c
 	insmod chardev.ko
 clean:
 	rm -f ioctl

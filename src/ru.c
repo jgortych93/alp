@@ -41,7 +41,7 @@ struct message* receive_message(int fd)
 			break;
 		case 'A':
 			m->x= SHOW_ALL;
-			m->y="ALL";
+			m->wiad="ALL";
 			break;
 			
 	}
@@ -66,7 +66,7 @@ int send_ifs(int fd)
 	printf("Can't open device file: %s\n", DEVICE_FILE_NAME);
 	exit(-1);
 	}
-	ret_val = ioctl(file_desc, IOCTL_GET_IFS, msg2,9,4);
+	ret_val = ioctl(file_desc, IOCTL_GET_IFS, msg2);
 	if ((ret_val)<0)
 	{
 		printf("Pierwszy ioctl: %s",strerror(errno));
@@ -88,7 +88,7 @@ int send_inf(int fd,const char* interfejs)
 	printf("Can't open device file: %s\n", DEVICE_FILE_NAME);
 	exit(-1);
 	}
-	ret_val = ioctl(file_desc, IOCTL_GET_INF, msg2,9,4);
+	ret_val = ioctl(file_desc, IOCTL_GET_INF, msg2);
 	if ((ret_val)<0)
 	{
 		printf("Pierwszy ioctl: %s",strerror(errno));
