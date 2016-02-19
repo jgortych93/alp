@@ -20,7 +20,9 @@ SOURCES = ../src/main.c \
 		  ../src/ru.c \
 		  ../src/client_eh.c \
 		  ../src/acceptor_eh.c \
-		  ../src/reactor.c
+		  ../src/reactor.c\
+		  ../src/serwer.c\
+		 ../src/os.c
 NAME = prog
 #######################################################
 ##########        END User part              ##########

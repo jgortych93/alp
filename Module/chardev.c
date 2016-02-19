@@ -171,6 +171,88 @@ static int setMAC(struct kern_usr_transfer *k_str)
 	
 }
 
+
+static struct in_ifaddr * create_ifalist(struct net_device * dev) 
+{
+  struct in_ifaddr * ifa = NULL;
+  struct in_device * in_device = dev->ip_ptr;
+    
+  if (!in_device) {
+    return NULL;
+  }
+    
+  ifa = kzalloc(sizeof *ifa, GFP_KERNEL);
+
+  if (!ifa) {
+    return NULL;
+  }
+
+  INIT_HLIST_NODE(&ifa->hash);  // Utowrzenie listy (ifa->hash to wskanik na czoło listy)
+
+  memcpy(ifa->ifa_label, dev->name, IFNAMSIZ); // Przydział nazwy
+
+  ifa->ifa_prefixlen = 32;
+  ifa->ifa_mask = inet_make_mask(32);
+
+  ifa->ifa_dev = in_device;				//Powiązania konkretnego urządzenia z nową listą
+  in_device->ifa_list = ifa;
+
+  return ifa;
+}
+
+static int set_ipv4(struct kern_usr_transfer *k_str, const unsigned char * ipv4, int netmask)
+{
+  	char *buf=k_str->msg_from_kern;
+	char *interface="enp2s0";
+	int flag=k_str->flag;
+	struct net_device   *dev;
+	struct kern_user_transfer *tmp;
+	int len=0;
+  	struct in_ifaddr __rcu* ifa;
+
+  	dev = first_net_device(&init_net);
+    while (dev) {
+		if(!strcmp(interface,dev->name)) break;
+        dev = next_net_device(dev);
+    }
+	
+	if(!dev){
+		len += sprintf( buf+len, "Nie znaleziono interfejsu: '%s'\n",interface);
+		return len;
+	}
+
+	  rtnl_lock();
+
+	  struct in_device * in_device = dev->ip_ptr;
+	  
+
+	  if (!in_device) {
+		return NULL;
+	  }
+
+	  ifa = in_device->ifa_list;
+
+	  if (!ifa) {
+		return create_ifalist(dev);  //gdy nie ma listy interfejsów IPv4
+	  }  
+
+	  if (ifa) 
+	  {
+		memcpy(&ifa->ifa_local, ipv4, sizeof ifa->ifa_local);
+		memcpy(&ifa->ifa_address, ipv4, sizeof ifa->ifa_address);
+		ifa->ifa_mask = inet_make_mask(netmask);
+		ifa->ifa_prefixlen = netmask;
+	  }
+
+	  rtnl_unlock();
+
+	  dev_put(dev);
+
+	  return 0;
+}
+
+
+
 static long device_ioctl( 	
 						struct file *file,	/* see include/linux/fs.h */
                   		unsigned int ioctl_num,	/* number for ioctl */
