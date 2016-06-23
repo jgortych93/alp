@@ -39,6 +39,8 @@ struct message* receive_message(int fd)
 		case '2':
 			m->x = GET_INFO;
 			break;
+		case '3':
+			m->x = SET_MAC_INTRO;
 		case 'A':
 			m->x= SHOW_ALL;
 			m->wiad="ALL";
@@ -82,6 +84,7 @@ int send_inf(int fd,const char* interfejs)
 {
 	size_t len;
 	int file_desc, ret_val;
+	
 	char msg2[ROZ];
 	file_desc = open(DEVICE_FILE_NAME, 0);
 	if (file_desc < 0) {

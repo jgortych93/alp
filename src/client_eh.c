@@ -42,6 +42,12 @@ static int handle_client_message(event_handler* self, struct message* m)
 				
 				break;
 			}
+		case SET_MAC_INTRO:
+			{
+				len=strlen("Wprowadz nowy adres MAC\n")+1;
+				send_bytes(fd,"Wprowadz nowy adres MAC\n",len);
+				break;
+			}
 		default:
 			
 			

@@ -1,10 +1,13 @@
 #include <stdlib.h>
 #include <stdbool.h>
+#define ROZ 100
 
 enum message_type {
 	ACK_NACK,
 	GET_INFO,
-	SHOW_ALL
+	SHOW_ALL,
+	SET_MAC_INTRO,
+	SET_MAC
 };
 
 struct message {

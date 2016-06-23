@@ -22,6 +22,7 @@ int write_string(int new_fd,const char *string);
 int read_string(int fd);
 void showMenu();
 char* choose_if();
+char* setMac();
 
 int main(int argc, char *argv[])
 {
@@ -103,6 +104,23 @@ int main(int argc, char *argv[])
 						perror("send");
                 option=1;
                 break;
+			case 5:
+				string="3.";
+				if ((write_string(sockfd,string))==-1)
+						perror("send");
+				if((read_string(sockfd))==-1)
+						perror("read");
+				
+				string=setMac();
+				if (string==NULL)
+				{
+					perror("Powrót z wprowadzania MACu niewlasciwy\n");
+					break;
+				}
+				if ((write_string(sockfd,string))==-1)
+						perror("send");
+                option=1;
+				break;
 			default:
 				printf("Wybrales nieistniejaca opcje\n");
 				break;
@@ -113,7 +131,7 @@ int main(int argc, char *argv[])
 }
 
 void showMenu(){
-    printf("1:Odbierz\n2:Menu\n3:Pobierz listę interfejsów\n4:Informacje o interfejsie\n");
+    printf("1:Odbierz\n2:Menu\n3:Pobierz listę interfejsów\n4:Informacje o interfejsie\n5:Ustaw MAC");
 }
 
 int write_string(int new_fd,const char *string)
@@ -175,5 +193,11 @@ char* choose_if()
 			return NULL;
 			
 	}
+	return bufor;
+}
+char* setMac()
+{
+	char* bufor;
+	scanf("%s",bufor);
 	return bufor;
 }

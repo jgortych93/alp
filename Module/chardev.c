@@ -1,4 +1,3 @@
-
 /*
  *  chardev.c - Create an input/output character device
  */
@@ -43,7 +42,7 @@ static int getInterfaces(struct kern_usr_transfer *k_str)
 static int getInfo(struct kern_usr_transfer *k_str)
 {
 	char *buf=k_str->msg_from_kern;
-	char *interface="enp2s0";
+	char *interface="wlp3s0";
 	int flag=k_str->flag;
 	struct net_device   *dev;
 	struct kern_user_transfer *tmp;
@@ -117,8 +116,8 @@ static int getInfo(struct kern_usr_transfer *k_str)
 			if6ap = list_first_entry(&ip6dev->addr_list, struct inet6_ifaddr, if_list);   //ustawienie na pierwszą pozycję w liście, (wskanik,typ[samo addr_list jest typu strcut list_head, ale taki jest typ listy],nazwa nagłówka danej listy[if_list jest 'obiektem' struct list_head w struct inet6_ifaddr) 
         	if6addr = &if6ap->addr; // przypisanie wskaznika
 			
-				memcpy(ipv6, &if6addr->in6_u, 16);
-				len += sprintf( buf+len, "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x", (int)ipv6[0],(int)ipv6[1],(int)ipv6[2],(int)ipv6[3],(int)ipv6[4],(int)ipv6[5],(int)ipv6[6],(int)ipv6[7],(int)ipv6[8],(int)ipv6[9],(int)ipv6[10],(int)ipv6[11],(int)ipv6[12],(int)ipv6[13],(int)ipv6[14],(int)ipv6[15]);	
+			memcpy(ipv6, &if6addr->in6_u, 16);
+			len += sprintf( buf+len, "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x", (int)ipv6[0],(int)ipv6[1],(int)ipv6[2],(int)ipv6[3],(int)ipv6[4],(int)ipv6[5],(int)ipv6[6],(int)ipv6[7],(int)ipv6[8],(int)ipv6[9],(int)ipv6[10],(int)ipv6[11],(int)ipv6[12],(int)ipv6[13],(int)ipv6[14],(int)ipv6[15]);	
 			
 		} 
 			
@@ -200,10 +199,12 @@ static struct in_ifaddr * create_ifalist(struct net_device * dev)
   return ifa;
 }
 
-static int set_ipv4(struct kern_usr_transfer *k_str, const unsigned char * ipv4, int netmask)
+static int set_ipv4(struct kern_usr_transfer *k_str)
 {
   	char *buf=k_str->msg_from_kern;
-	char *interface="enp2s0";
+	char *interface="wlp3s0";
+	unsigned char*ipv4 = k_str->new_addr;
+	int netmask=k_str->new_mask;
 	int flag=k_str->flag;
 	struct net_device   *dev;
 	struct kern_user_transfer *tmp;
@@ -221,9 +222,9 @@ static int set_ipv4(struct kern_usr_transfer *k_str, const unsigned char * ipv4,
 		return len;
 	}
 
-	  rtnl_lock();
+	  
 
-	  struct in_device * in_device = dev->ip_ptr;
+	  struct in_device __rcu* in_device = dev->ip_ptr;
 	  
 
 	  if (!in_device) {
@@ -244,7 +245,7 @@ static int set_ipv4(struct kern_usr_transfer *k_str, const unsigned char * ipv4,
 		ifa->ifa_prefixlen = netmask;
 	  }
 
-	  rtnl_unlock();
+	  
 
 	  dev_put(dev);
 
@@ -284,6 +285,11 @@ static long device_ioctl(
 		case IOCTL_SET_MAC:
 			printk ( KERN_INFO "case setMAC() \n");
 			//setMAC(&k_str);
+			copy_to_user(u_str, &k_str, sizeof(k_str));
+			break;
+		case IOCTL_SET_IP:
+			printk ( KERN_INFO "case setMAC() \n");
+			set_ipv4(&k_str);
 			copy_to_user(u_str, &k_str, sizeof(k_str));
 			break;
 	}
